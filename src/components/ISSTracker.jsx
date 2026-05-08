@@ -276,16 +276,21 @@ const ISSTracker = ({ isDarkMode, toggleTheme }) => {
     try {
       let data;
       try {
+        // Primary API: WhereTheISS
         const response = await fetch("https://api.wheretheiss.at/v1/satellites/25544");
         if (!response.ok) throw new Error("Primary API failed");
         data = await response.json();
       } catch (e) {
+        console.warn("Primary API failed, trying Fallback...", e);
+        // Fallback: Open-Notify
         const response = await fetch("https://api.open-notify.org/iss-now.json");
+        if (!response.ok) throw new Error("All ISS APIs failed");
         const json = await response.json();
         data = {
           latitude: json.iss_position.latitude,
           longitude: json.iss_position.longitude,
           timestamp: json.timestamp,
+          velocity: 27600, // Static fallback velocity
         };
       }
 
@@ -298,7 +303,9 @@ const ISSTracker = ({ isDarkMode, toggleTheme }) => {
       const newPos = { lat, lng, timestamp: timestampSec };
       const prevPos = previousPositionRef.current;
       const timeDiff = prevPos ? Math.max(timestampSec - prevPos.timestamp, 1) : 0;
-      const currentSpeed = prevPos ? Math.round(calculateSpeed(prevPos, newPos, timeDiff)) : 0;
+      
+      // Use native API velocity if available, otherwise calculate it
+      const currentSpeed = data.velocity ? Math.round(data.velocity) : (prevPos ? Math.round(calculateSpeed(prevPos, newPos, timeDiff)) : 27600);
       
       const timeLabel = new Date(timestampSec * 1000).toLocaleTimeString([], {
         hour: "2-digit",
@@ -482,7 +489,7 @@ const ISSTracker = ({ isDarkMode, toggleTheme }) => {
                         key={article.id}
                         initial={{ opacity: 0, y: 20 }}
                         animate={{ opacity: 1, y: 0 }}
-                        className="group grid gap-4 rounded-3xl border border-slate-100 dark:border-slate-800 bg-white/50 dark:bg-slate-900/50 p-4 shadow-sm hover:shadow-xl hover:bg-white dark:hover:bg-slate-900 transition-all duration-300 sm:grid-cols-[100px_minmax(0,_1fr)]"
+                        className="group grid gap-4 rounded-3xl border border-slate-200 dark:border-slate-800 bg-white/60 dark:bg-slate-900/50 p-4 shadow-sm hover:shadow-xl hover:bg-white dark:hover:bg-slate-900 transition-all duration-300 sm:grid-cols-[100px_minmax(0,_1fr)]"
                       >
                         <img src={article.imageUrl} alt="" className="h-24 w-full rounded-2xl object-cover" />
                         <div>
