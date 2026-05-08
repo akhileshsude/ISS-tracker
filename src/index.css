@@ -1,0 +1,111 @@
+@import "tailwindcss";
+
+@theme {
+  --color-background: 210 30% 98%;
+  --color-foreground: 217 20% 17%;
+  --color-card: 0 0% 100%;
+  --color-card-foreground: 217 20% 17%;
+  --color-border: 210 16% 88%;
+  --color-primary: 217.2 91.2% 59.8%;
+  --color-primary-foreground: 222.2 47.4% 11.2%;
+  --radius: 1.75rem;
+}
+
+@layer base {
+  html {
+    scroll-behavior: smooth;
+  }
+
+  body {
+    min-height: 100vh;
+    @apply transition-colors duration-500 antialiased;
+    font-feature-settings: "rlig" 1, "calt" 1;
+    background: radial-gradient(at 0% 0%, rgba(240, 249, 255, 1) 0, transparent 50%),
+                radial-gradient(at 100% 0%, rgba(245, 243, 255, 1) 0, transparent 50%),
+                radial-gradient(at 100% 100%, rgba(236, 254, 255, 1) 0, transparent 50%),
+                radial-gradient(at 0% 100%, rgba(248, 250, 252, 1) 0, transparent 50%);
+    background-color: #f8fafc;
+  }
+
+  .dark body {
+    background: radial-gradient(at 0% 0%, rgba(15, 23, 42, 1) 0, transparent 50%),
+                radial-gradient(at 100% 0%, rgba(30, 41, 59, 1) 0, transparent 50%),
+                radial-gradient(at 100% 100%, rgba(15, 23, 42, 1) 0, transparent 50%);
+    background-color: #020617;
+  }
+}
+
+.glass-panel {
+  background: rgba(255, 255, 255, 0.7);
+  border: 1px solid rgba(255, 255, 255, 0.6);
+  backdrop-filter: blur(20px) saturate(180%);
+  box-shadow: 0 8px 32px 0 rgba(31, 38, 135, 0.04),
+              inset 0 0 0 1px rgba(255, 255, 255, 0.4);
+}
+
+.dark .glass-panel {
+  background: rgba(15, 23, 42, 0.8);
+  border-color: rgba(255, 255, 255, 0.08);
+  box-shadow: 0 28px 80px rgba(0, 0, 0, 0.4);
+  backdrop-filter: blur(24px);
+}
+
+.leaflet-container {
+  width: 100%;
+  height: 100%;
+  min-height: 320px;
+  border-radius: 1.5rem;
+  border: 1px solid #e2e8f0;
+}
+
+.dark .leaflet-container {
+  border-color: #1e293b;
+  filter: invert(100%) hue-rotate(180deg) brightness(95%) contrast(90%);
+}
+
+.iss-marker {
+  filter: drop-shadow(0 0 12px rgba(14, 165, 233, 0.6));
+}
+
+.custom-scrollbar::-webkit-scrollbar {
+  width: 6px;
+}
+
+.custom-scrollbar::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.custom-scrollbar::-webkit-scrollbar-thumb {
+  background: rgba(148, 163, 184, 0.2);
+  border-radius: 10px;
+}
+
+.custom-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: rgba(148, 163, 184, 0.3);
+}
+
+.dark .custom-scrollbar::-webkit-scrollbar-thumb {
+  background: rgba(30, 41, 59, 0.5);
+}
+
+.leaflet-popup-content-wrapper {
+  background: rgba(255, 255, 255, 0.9) !important;
+  backdrop-filter: blur(8px);
+  border-radius: 1rem !important;
+  color: #0f172a !important;
+}
+
+.dark .leaflet-popup-content-wrapper {
+  background: rgba(15, 23, 42, 0.9) !important;
+  color: #f1f5f9 !important;
+}
+
+.recharts-cartesian-grid-horizontal line,
+.recharts-cartesian-grid-vertical line {
+  stroke: rgba(148, 163, 184, 0.1);
+}
+
+.dark .recharts-cartesian-grid-horizontal line,
+.dark .recharts-cartesian-grid-vertical line {
+  stroke: rgba(30, 41, 59, 0.4);
+}
