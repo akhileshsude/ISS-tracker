@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { MessageSquare, Send, X, Bot, User, Minimize2, Maximize2, Sparkles } from "lucide-react";
+import { HfInference } from "@huggingface/inference";
 
 const Chatbot = ({ issData, newsData }) => {
   const [isOpen, setIsOpen] = useState(false);
@@ -15,6 +16,9 @@ const Chatbot = ({ issData, newsData }) => {
   const [isLoading, setIsLoading] = useState(false);
   const scrollRef = useRef(null);
 
+  // Initialize HfInference client
+  const client = new HfInference(import.meta.env.VITE_HF_TOKEN);
+
   useEffect(() => {
     if (scrollRef.current) {
       scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
@@ -24,56 +28,37 @@ const Chatbot = ({ issData, newsData }) => {
   const generateResponse = async (userMessage) => {
     setIsLoading(true);
     try {
-      // System prompt to restrict knowledge
       const systemPrompt = `You are the SpaceScope AI, a specialized mission control assistant. 
-      Your knowledge is STRICTLY LIMITED to the following data provided in the current dashboard context:
-      
-      ISS TELEMETRY:
-      - Latitude/Longitude: ${issData.lat}, ${issData.lng}
-      - Speed: ${issData.speed} km/h
-      - Nearest Place: ${issData.nearestPlace}
-      - Last Uplink: ${issData.timestamp}
-      
-      LATEST NEWS INTELLIGENCE:
-      ${newsData.slice(0, 5).map(a => `- ${a.title} (Source: ${a.source})`).join("\n")}
-      
-      RULES:
-      1. ONLY answer based on the data above.
-      2. If asked about something NOT in the data (e.g., weather, generic facts, or deep history), politely state that your current mission uplink only covers live ISS metrics and recent space news.
-      3. Keep responses professional, concise, and technical.
-      4. Do not mention that you are an AI model or mention Hugging Face.
-      5. If the user asks for coordinates or speed, provide the live values from the telemetry section above.`;
+      Your knowledge is STRICTLY LIMITED to the following live data:
+      ISS: Lat ${issData.lat}, Lng ${issData.lng}, Speed ${issData.speed} km/h, Location ${issData.nearestPlace}.
+      NEWS: ${newsData.slice(0, 3).map(a => a.title).join(" | ")}.
+      RULES: ONLY answer based on this data. Be concise and professional.`;
 
-      const response = await fetch(
-        "https://api-inference.huggingface.co/models/mistralai/Mistral-7B-Instruct-v0.2",
-        {
-          headers: {
-            Authorization: `Bearer ${import.meta.env.VITE_HF_TOKEN}`,
-            "Content-Type": "application/json",
+      const chatCompletion = await client.chatCompletion({
+        model: "Qwen/Qwen2.5-72B-Instruct", // Using a stable model name since Qwen3 is not out yet
+        messages: [
+          {
+            role: "system",
+            content: systemPrompt
           },
-          method: "POST",
-          body: JSON.stringify({
-            inputs: `<s>[INST] ${systemPrompt} \n\n User Question: ${userMessage} [/INST]`,
-            parameters: { max_new_tokens: 250, temperature: 0.7 },
-            options: { wait_for_model: true },
-          }),
-        }
-      );
+          {
+            role: "user",
+            content: userMessage,
+          },
+        ],
+        max_tokens: 500,
+      });
 
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}));
-        throw new Error(errorData.error || `HTTP ${response.status}`);
-      }
-
-      const result = await response.json();
-      const aiText = (Array.isArray(result) ? result[0]?.generated_text : result.generated_text)
-        ?.split("[/INST]")?.pop()?.trim() || 
-        "Mission control is experiencing a temporary signal delay. Please try your query again.";
+      const aiText = chatCompletion.choices[0].message.content || 
+                     "Mission control is experiencing a temporary signal delay.";
       
       setMessages(prev => [...prev, { role: "assistant", content: aiText }]);
     } catch (error) {
       console.error("AI Error:", error);
-      setMessages(prev => [...prev, { role: "assistant", content: "Signal lost. Unable to reach AI command. Check your VITE_HF_TOKEN configuration." }]);
+      const errorMessage = !import.meta.env.VITE_HF_TOKEN 
+        ? "Uplink Error: VITE_HF_TOKEN missing." 
+        : `Uplink Error: ${error.message}`;
+      setMessages(prev => [...prev, { role: "assistant", content: errorMessage }]);
     } finally {
       setIsLoading(false);
     }
