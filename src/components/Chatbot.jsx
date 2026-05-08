@@ -1,20 +1,12 @@
 import React, { useState, useEffect, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { MessageSquare, Send, X, Bot, User, Minimize2, Maximize2, Sparkles, Key, ShieldCheck } from "lucide-react";
+import { MessageSquare, Send, X, Bot, User, Minimize2, Maximize2, Sparkles } from "lucide-react";
 import { HfInference } from "@huggingface/inference";
-import toast from "react-hot-toast";
 
 const Chatbot = ({ issData, newsData }) => {
   const [isOpen, setIsOpen] = useState(false);
   const [isMinimized, setIsMinimized] = useState(false);
   const [input, setInput] = useState("");
-  const [token, setToken] = useState(() => {
-    // Priority: .env > localStorage
-    return import.meta.env.VITE_HF_TOKEN || localStorage.getItem("SPACE_SCOPE_HF_TOKEN") || "";
-  });
-  const [showTokenInput, setShowTokenInput] = useState(!token);
-  const [tempToken, setTempToken] = useState("");
-  
   const [messages, setMessages] = useState([
     {
       role: "assistant",
@@ -24,8 +16,8 @@ const Chatbot = ({ issData, newsData }) => {
   const [isLoading, setIsLoading] = useState(false);
   const scrollRef = useRef(null);
 
-  // Initialize HfInference client with either env token or local token
-  const client = token ? new HfInference(token) : null;
+  // Initialize HfInference client
+  const client = new HfInference(import.meta.env.VITE_HF_TOKEN);
 
   useEffect(() => {
     if (scrollRef.current) {
@@ -33,35 +25,26 @@ const Chatbot = ({ issData, newsData }) => {
     }
   }, [messages]);
 
-  const handleSaveToken = (e) => {
-    e.preventDefault();
-    if (!tempToken.trim().startsWith("hf_")) {
-      toast.error("Invalid token format. Should start with 'hf_'");
-      return;
-    }
-    localStorage.setItem("SPACE_SCOPE_HF_TOKEN", tempToken.trim());
-    setToken(tempToken.trim());
-    setShowTokenInput(false);
-    toast.success("AI Uplink Established");
-  };
-
   const generateResponse = async (userMessage) => {
-    if (!client) {
-      setShowTokenInput(true);
-      return;
-    }
-
     setIsLoading(true);
     try {
       const systemPrompt = `You are the SpaceScope AI, a specialized mission control assistant. 
-      Knowledge: ISS Lat ${issData.lat}, Lng ${issData.lng}, Speed ${issData.speed} km/h, Location ${issData.nearestPlace}.
-      Rules: ONLY answer based on this live dashboard data. Be concise and professional.`;
+      Your knowledge is STRICTLY LIMITED to the following live data:
+      ISS: Lat ${issData.lat}, Lng ${issData.lng}, Speed ${issData.speed} km/h, Location ${issData.nearestPlace}.
+      NEWS: ${newsData.slice(0, 3).map(a => a.title).join(" | ")}.
+      RULES: ONLY answer based on this data. Be concise and professional.`;
 
       const chatCompletion = await client.chatCompletion({
         model: "Qwen/Qwen2.5-72B-Instruct",
         messages: [
-          { role: "system", content: systemPrompt },
-          { role: "user", content: userMessage },
+          {
+            role: "system",
+            content: systemPrompt
+          },
+          {
+            role: "user",
+            content: userMessage,
+          },
         ],
         max_tokens: 500,
       });
@@ -72,11 +55,10 @@ const Chatbot = ({ issData, newsData }) => {
       setMessages(prev => [...prev, { role: "assistant", content: aiText }]);
     } catch (error) {
       console.error("AI Error:", error);
-      if (error.message.includes("401")) {
-        toast.error("Token invalid or expired.");
-        setShowTokenInput(true);
-      }
-      setMessages(prev => [...prev, { role: "assistant", content: `Uplink Error: ${error.message}` }]);
+      const errorMessage = !import.meta.env.VITE_HF_TOKEN 
+        ? "Uplink Error: VITE_HF_TOKEN missing." 
+        : `Uplink Error: ${error.message}`;
+      setMessages(prev => [...prev, { role: "assistant", content: errorMessage }]);
     } finally {
       setIsLoading(false);
     }
@@ -120,61 +102,46 @@ const Chatbot = ({ issData, newsData }) => {
                 </div>
               </div>
               <div className="flex items-center gap-2">
-                <button onClick={() => setToken("") || setShowTokenInput(true)} className="p-1.5 hover:bg-white/10 rounded-lg text-slate-400" title="Reset Token"><Key size={14} /></button>
-                <button onClick={() => setIsMinimized(!isMinimized)} className="rounded-lg p-1.5 hover:bg-white/10 transition-colors">
+                <button 
+                  onClick={() => setIsMinimized(!isMinimized)}
+                  className="rounded-lg p-1.5 hover:bg-white/10 transition-colors"
+                >
                   {isMinimized ? <Maximize2 size={16} /> : <Minimize2 size={16} />}
                 </button>
-                <button onClick={() => setIsOpen(false)} className="rounded-lg p-1.5 hover:bg-white/10 transition-colors">
+                <button 
+                  onClick={() => setIsOpen(false)}
+                  className="rounded-lg p-1.5 hover:bg-white/10 transition-colors"
+                >
                   <X size={16} />
                 </button>
               </div>
             </div>
 
             {!isMinimized && (
-              <div className="flex-1 flex flex-col overflow-hidden relative">
-                <AnimatePresence>
-                  {showTokenInput && (
-                    <motion.div 
-                      initial={{ opacity: 0, y: 20 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      exit={{ opacity: 0, scale: 0.9 }}
-                      className="absolute inset-0 z-20 bg-white/95 dark:bg-slate-900/95 backdrop-blur-md p-8 flex flex-col items-center justify-center text-center"
-                    >
-                      <div className="mb-6 p-4 rounded-full bg-sky-50 dark:bg-sky-900/20 text-sky-500">
-                        <ShieldCheck size={48} />
-                      </div>
-                      <h4 className="text-lg font-bold text-slate-900 dark:text-white mb-2">Secure AI Uplink</h4>
-                      <p className="text-xs text-slate-500 dark:text-slate-400 mb-6">
-                        Paste your Hugging Face token to enable mission intelligence. This token is saved only in your browser.
-                      </p>
-                      <form onSubmit={handleSaveToken} className="w-full space-y-4">
-                        <input
-                          type="password"
-                          value={tempToken}
-                          onChange={(e) => setTempToken(e.target.value)}
-                          placeholder="hf_..."
-                          className="w-full rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-800 px-4 py-3 text-sm"
-                        />
-                        <button type="submit" className="w-full rounded-xl bg-sky-500 py-3 text-sm font-bold text-white shadow-lg shadow-sky-200 dark:shadow-none hover:bg-sky-600 transition-all">
-                          Establish Uplink
-                        </button>
-                        <a href="https://huggingface.co/settings/tokens" target="_blank" rel="noreferrer" className="block text-[10px] text-sky-500 hover:underline">
-                          Get your free token here
-                        </a>
-                      </form>
-                    </motion.div>
-                  )}
-                </AnimatePresence>
-
+              <>
                 {/* Messages */}
-                <div ref={scrollRef} className="flex-1 overflow-y-auto p-6 space-y-4 custom-scrollbar bg-white/50 dark:bg-slate-900/50">
+                <div 
+                  ref={scrollRef}
+                  className="flex-1 overflow-y-auto p-6 space-y-4 custom-scrollbar bg-white/50 dark:bg-slate-900/50"
+                >
                   {messages.map((msg, idx) => (
-                    <div key={idx} className={`flex ${msg.role === "user" ? "justify-end" : "justify-start"}`}>
+                    <div
+                      key={idx}
+                      className={`flex ${msg.role === "user" ? "justify-end" : "justify-start"}`}
+                    >
                       <div className={`flex gap-3 max-w-[85%] ${msg.role === "user" ? "flex-row-reverse" : "flex-row"}`}>
-                        <div className={`mt-1 flex h-8 w-8 shrink-0 items-center justify-center rounded-xl ${msg.role === "user" ? "bg-sky-500 text-white" : "bg-slate-800 text-sky-400"}`}>
+                        <div className={`mt-1 flex h-8 w-8 shrink-0 items-center justify-center rounded-xl ${
+                          msg.role === "user" 
+                            ? "bg-sky-500 text-white" 
+                            : "bg-slate-800 text-sky-400"
+                        }`}>
                           {msg.role === "user" ? <User size={16} /> : <Bot size={16} />}
                         </div>
-                        <div className={`rounded-2xl px-4 py-2.5 text-sm leading-relaxed ${msg.role === "user" ? "bg-sky-500 text-white" : "bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-200 border border-slate-100 dark:border-slate-700 shadow-sm"}`}>
+                        <div className={`rounded-2xl px-4 py-2.5 text-sm leading-relaxed ${
+                          msg.role === "user"
+                            ? "bg-sky-500 text-white shadow-lg shadow-sky-200 dark:shadow-none"
+                            : "bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-200 border border-slate-100 dark:border-slate-700 shadow-sm"
+                        }`}>
                           {msg.content}
                         </div>
                       </div>
@@ -194,7 +161,10 @@ const Chatbot = ({ issData, newsData }) => {
                 </div>
 
                 {/* Input */}
-                <form onSubmit={handleSubmit} className="p-4 bg-white dark:bg-slate-900 border-t border-slate-100 dark:border-slate-800">
+                <form 
+                  onSubmit={handleSubmit}
+                  className="p-4 bg-white dark:bg-slate-900 border-t border-slate-100 dark:border-slate-800"
+                >
                   <div className="relative flex items-center">
                     <input
                       type="text"
@@ -203,12 +173,16 @@ const Chatbot = ({ issData, newsData }) => {
                       placeholder="Ask mission control..."
                       className="w-full rounded-xl bg-slate-100 dark:bg-slate-800 pl-4 pr-12 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-sky-500 transition-all dark:text-white"
                     />
-                    <button type="submit" disabled={isLoading || showTokenInput} className="absolute right-2 p-2 rounded-lg bg-sky-500 text-white hover:bg-sky-600 disabled:opacity-50 transition-colors">
+                    <button
+                      type="submit"
+                      disabled={isLoading}
+                      className="absolute right-2 p-2 rounded-lg bg-sky-500 text-white hover:bg-sky-600 disabled:opacity-50 transition-colors"
+                    >
                       <Send size={16} />
                     </button>
                   </div>
                 </form>
-              </div>
+              </>
             )}
           </motion.div>
         )}
